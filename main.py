@@ -4,6 +4,7 @@ import sys  # importa o módulo sys para interagir com o sistema (encerrar o pro
 import time  # importa o módulo time para controlar delays e temporizações
 import unicodedata  # importa o módulo unicodedata para normalização de textos
 import os  # importa o módulo os para manipulação de caminho de arquivos e diretórios
+import asyncio
 
 # Inicializa todos os módulos do pygame
 pygame.init()  # inicia o pygame, preparando os módulos internos para uso
@@ -45,18 +46,10 @@ texto_surf, texto_rect = fonte_pequena.render("Imagem Aqui", PRETO)  # renderiza
 texto_rect.center = imagem_placeholder.get_rect().center  # centraliza o texto na superfície
 imagem_placeholder.blit(texto_surf, texto_rect)  # desenha o texto na superfície
 
-# Tenta carregar uma imagem real de dica
-try:
-    imagem_dna = pygame.image.load(os.path.join('jogo-genetico','img', 'dna.png')).convert_alpha()
-    imagem_dna = pygame.transform.smoothscale(imagem_dna, (500, 120 * 500 / 200))  # redimensiona suavemente a imagem
-except (pygame.error, FileNotFoundError):
-    # Cria uma imagem de DNA simples em vez de carregar
-    imagem_dna = pygame.Surface((500, 300))
-    imagem_dna.fill(PRETO)
-    pygame.draw.lines(imagem_dna, AZUL, False, [(100, 50), (150, 100), (100, 150), (150, 200), (100, 250)], 3)
-    pygame.draw.lines(imagem_dna, VERMELHO, False, [(400, 50), (350, 100), (400, 150), (350, 200), (400, 250)], 3)
-    for i in range(5):
-        pygame.draw.line(imagem_dna, VERDE, (100, 50+i*50), (400, 50+i*50), 2)
+# Carrega uma imagem real de dica
+imagem_dna = pygame.image.load(os.path.join('jogo-genetico','img', 'dna.png')).convert_alpha()
+# imagem_dna = pygame.image.load(os.path.join('jogo-genetico', 'img', 'dna.png')).convert_alpha()  # carrega PNG com canal alpha
+imagem_dna = pygame.transform.smoothscale(imagem_dna, (500, 120 * 500 / 200))  # redimensiona suavemente a imagem
 
 # Dados de exemplo para as rodadas (palavra certa e lista de dicas)
 jogos = [  # lista de jogos, cada um é [resposta, [dica1, dica2, ...]]
@@ -126,7 +119,7 @@ def intro_screen():
     tela.fill(PRETO)  # limpa tela com cor preta
     draw_text("QUIZ GAME", fonte_titulo, AMARELO, LARGURA/2, ALTURA/4, "center")  # título do jogo
     draw_text("Tente adivinhar a resposta com o mínimo de dicas possível!", fonte_media, BRANCO, LARGURA/2, ALTURA/2, "center")  # instruções
-    draw_text("Clique para começar", fonte_pequena, VERDE, LARGURA/2, ALTURA*3/4, "center")  # prompt iniciar
+    draw_text("Pressione qualquer tecla para começar", fonte_pequena, VERDE, LARGURA/2, ALTURA*3/4, "center")  # prompt iniciar
     pygame.display.flip()  # aplica mudanças na tela
     esperando = True
     while esperando:
@@ -134,8 +127,9 @@ def intro_screen():
             if evento.type == pygame.QUIT:  # se clicar fechar
                 pygame.quit()  # encerra pygame
                 sys.exit()  # encerra programa
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
-                esperando = False  # sai da espera
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_RETURN:  # somente se for a tecla Enter
+                    esperando = False  # sai da espera
 
 # === Função que executa uma rodada ===
 def game_round(dicas, resposta_certa, pontos_totais, num_rodada):
@@ -148,19 +142,15 @@ def game_round(dicas, resposta_certa, pontos_totais, num_rodada):
     largura_botao, altura_botao = 150, 40  # tamanho dos botões
     running = True  # controle do loop da rodada
     mouse_clicked_last_frame = False  # estado anterior do clique
-    clock = pygame.time.Clock()  # objeto para controlar FPS
-    
     while running:
         tela.fill(PRETO)  # limpa tela
         draw_text(f"RODADA {num_rodada}", fonte_larga, AZUL, LARGURA/2, 40, "center")  # mostra número da rodada
-        
         # preparação para desenhar dicas em colunas
         cols_x = [50, LARGURA//2 + 20]  # posições iniciais X para colunas
         col_y = [100, 100]  # posições iniciais Y para colunas
         limite_inferior = ALTURA - 200  # limite para quebra de coluna
         draw_text("Suas dicas até agora:", fonte_media, AMARELO, cols_x[0], col_y[0])  # título dicas
         col_y[0] += fonte_media.get_sized_height() + 10  # avança Y após título
-        
         for idx in range(i_dica):  # para cada dica disponível
             dica = dicas[idx]  # obtém dica da lista
             altura_dica = dica.get_height() if isinstance(dica, pygame.Surface) else fonte_pequena.get_sized_height()  # calcula altura da dica
@@ -172,7 +162,6 @@ def game_round(dicas, resposta_certa, pontos_totais, num_rodada):
             else:
                 draw_text(f"Dica {idx+1}: {dica}", fonte_pequena, AMARELO, x, y)  # desenha texto da dica
             col_y[coluna] += altura_dica + 10  # avança Y na coluna
-            
         y_offset = max(col_y) + 20  # define espaço vertical após dicas
         pontos_possiveis = len(dicas) - i_dica + 1  # calcula pontos possíveis
         draw_text(f"Dicas restantes: {len(dicas)-i_dica}", fonte_pequena, AZUL, 50, y_offset)  # mostra dicas restantes
@@ -180,31 +169,26 @@ def game_round(dicas, resposta_certa, pontos_totais, num_rodada):
         draw_text(f"Total de pontos: {pontos_totais}", fonte_pequena, VERDE, 50, y_offset + 60)  # total acumulado
         draw_text(f"Qual é o seu {i_chute+1}° chute?", fonte_media, BRANCO, 50, y_offset + 100)  # prompt de chute
         draw_input_box(50, y_offset + 140, 400, 40, input_text, input_active)  # desenha caixa de input
-        
         pos_mouse = pygame.mouse.get_pos()  # lê posição do mouse
         mouse_pressed = pygame.mouse.get_pressed()[0]  # lê estado do clique
         mouse_just_clicked = mouse_pressed and not mouse_clicked_last_frame  # detecta clique novo
         button_y = y_offset + 200  # posição vertical dos botões
-        
         # botão Desistir
         desistir_hover = desistir_x <= pos_mouse[0] <= desistir_x + largura_botao and button_y <= pos_mouse[1] <= button_y + altura_botao
         pygame.draw.rect(tela, (255, 100, 100) if desistir_hover else VERMELHO, (desistir_x, button_y, largura_botao, altura_botao))
         draw_text("Desistir", fonte_media, PRETO, desistir_x + largura_botao/2, button_y + altura_botao/2, "center")
-        
         # botão Pedir Dica
         if i_dica < len(dicas):
-            dica_hover = pedir_dica_x <= pos_mouse[0] <= pedir_dica_x + largura_botao and button_y <= pos_mouse[1] <= button_y + altura_botao
+            dica_hover = pedir_dica_x <= pos_mouse[0] <= pedir_dica_x + largura_botao and  button_y <= pos_mouse[1] <= button_y + altura_botao
             pygame.draw.rect(tela, (255,255,100) if dica_hover else AMARELO, (pedir_dica_x, button_y, largura_botao, altura_botao))
             draw_text("Pedir Dica", fonte_media, PRETO, pedir_dica_x + largura_botao/2, button_y + altura_botao/2, "center")
         else:
             draw_text("Sem mais dicas!", fonte_pequena, VERMELHO, pedir_dica_x + largura_botao/2, button_y + altura_botao/2, "center")
             dica_hover = False
-            
         # botão Enviar
         enviar_hover = enviar_x <= pos_mouse[0] <= enviar_x + largura_botao and button_y <= pos_mouse[1] <= button_y + altura_botao
         pygame.draw.rect(tela, (100,255,100) if enviar_hover else VERDE, (enviar_x, button_y, largura_botao, altura_botao))
         draw_text("Enviar", fonte_media, PRETO, enviar_x + largura_botao/2, button_y + altura_botao/2, "center")
-        
         # trata cliques
         if mouse_just_clicked:
             if desistir_hover:
@@ -221,7 +205,6 @@ def game_round(dicas, resposta_certa, pontos_totais, num_rodada):
                     show_message("Resposta incorreta, tente novamente!", VERMELHO, 1)  # mensagem de erro
                     i_chute += 1  # incrementa contador de chutes
                     input_text = ""  # limpa texto
-        
         for evento in pygame.event.get():  # captura eventos
             if evento.type == pygame.QUIT:
                 pygame.quit(); sys.exit()  # fecha jogo
@@ -247,9 +230,8 @@ def game_round(dicas, resposta_certa, pontos_totais, num_rodada):
                     input_text = input_text[:-1]  # remove última letra
                 else:
                     input_text += evento.unicode  # adiciona caractere digitado
-        
         pygame.display.flip()  # atualiza tela
-        clock.tick(30)  # limita a 30 FPS
+        pygame.time.Clock().tick(30)  # limita a 30 FPS
         mouse_clicked_last_frame = mouse_pressed  # atualiza estado do clique
 
 # === Tela de fim de jogo ===
@@ -261,15 +243,14 @@ def end_game_screen(total_pontos):
     draw_text("SUA PONTUAÇÃO TOTAL FOI DE", fonte_media, VERDE, LARGURA/2, ALTURA/2, "center")  # texto auxiliar
     draw_text(f"{total_pontos}", fonte_titulo, VERDE, LARGURA/2, ALTURA/2 + 60, "center")  # mostra total
     draw_text(point_text, fonte_media, VERDE, LARGURA/2, ALTURA/2 + 120, "center")  # mostra PONTO(S)
-    draw_text("Clique para sair", fonte_pequena, BRANCO, LARGURA/2, ALTURA*3/4 + 50, "center")  # prompt sair
+    draw_text("Pressione qualquer tecla para sair", fonte_pequena, BRANCO, LARGURA/2, ALTURA*3/4 + 50, "center")  # prompt sair
     pygame.display.flip()  # aplica mudanças
-    
     esperando = True
     while esperando:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
+            elif evento.type == pygame.KEYDOWN:
                 esperando = False
 
 # === Pergunta para continuar jogando ===
@@ -279,30 +260,8 @@ def ask_continue():
     sim_x, sim_y = LARGURA/3 - 75, ALTURA/2  # posição botão Sim
     nao_x, nao_y = 2*LARGURA/3 - 75, ALTURA/2  # posição botão Não
     largura_botao, altura_botao = 150, 50  # tamanho botões
-    clock = pygame.time.Clock()  # objeto para controlar FPS
-    
     esperando = True
     while esperando:
-        tela.fill(PRETO)
-        draw_text("Quer jogar outra rodada?", fonte_larga, BRANCO, LARGURA/2, ALTURA/3, "center")
-        pos_mouse = pygame.mouse.get_pos()
-        
-        # desenha botão Sim com hover
-        if sim_x <= pos_mouse[0] <= sim_x + largura_botao and sim_y <= pos_mouse[1] <= sim_y + altura_botao:
-            pygame.draw.rect(tela, (100, 255, 100), (sim_x, sim_y, largura_botao, altura_botao))
-        else:
-            pygame.draw.rect(tela, VERDE, (sim_x, sim_y, largura_botao, altura_botao))
-        draw_text("Sim", fonte_media, PRETO, sim_x + largura_botao/2, sim_y + altura_botao/2, "center")
-        
-        # desenha botão Não com hover
-        if nao_x <= pos_mouse[0] <= nao_x + largura_botao and nao_y <= pos_mouse[1] <= nao_y + altura_botao:
-            pygame.draw.rect(tela, (255, 100, 100), (nao_x, nao_y, largura_botao, altura_botao))
-        else:
-            pygame.draw.rect(tela, VERMELHO, (nao_x, nao_y, largura_botao, altura_botao))
-        draw_text("Não", fonte_media, PRETO, nao_x + largura_botao/2, nao_y + altura_botao/2, "center")
-        
-        pygame.display.flip()
-        
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
@@ -312,8 +271,23 @@ def ask_continue():
                     return True  # jogador quer continuar
                 elif nao_x <= pos_mouse[0] <= nao_x + largura_botao and nao_y <= pos_mouse[1] <= nao_y + altura_botao:
                     return False  # jogador não quer continuar
-                    
-        clock.tick(30)  # limita a 30 FPS
+        tela.fill(PRETO)
+        draw_text("Quer jogar outra rodada?", fonte_larga, BRANCO, LARGURA/2, ALTURA/3, "center")
+        pos_mouse = pygame.mouse.get_pos()
+        # desenha botão Sim com hover
+        if sim_x <= pos_mouse[0] <= sim_x + largura_botao and sim_y <= pos_mouse[1] <= sim_y + altura_botao:
+            pygame.draw.rect(tela, (100, 255, 100), (sim_x, sim_y, largura_botao, altura_botao))
+        else:
+            pygame.draw.rect(tela, VERDE, (sim_x, sim_y, largura_botao, altura_botao))
+        draw_text("Sim", fonte_media, PRETO, sim_x + largura_botao/2, sim_y + altura_botao/2, "center")
+        # desenha botão Não com hover
+        if nao_x <= pos_mouse[0] <= nao_x + largura_botao and nao_y <= pos_mouse[1] <= nao_y + altura_botao:
+            pygame.draw.rect(tela, (255, 100, 100), (nao_x, nao_y, largura_botao, altura_botao))
+        else:
+            pygame.draw.rect(tela, VERMELHO, (nao_x, nao_y, largura_botao, altura_botao))
+        draw_text("Não", fonte_media, PRETO, nao_x + largura_botao/2, nao_y + altura_botao/2, "center")
+        pygame.display.flip()
+        pygame.time.Clock().tick(30)
 
 # === Tela que mostra pontos da rodada ===
 def show_points(pontos_rodada, total_pontos):
@@ -324,15 +298,14 @@ def show_points(pontos_rodada, total_pontos):
     draw_text(ponto_texto, fonte_media, VERDE, LARGURA/2, ALTURA/2 + 60, "center")  # texto auxiliar
     total_text = f"Você tem o total de {total_pontos} ponto" if total_pontos == 1 else f"Você tem o total de {total_pontos} pontos"  # total
     draw_text(total_text, fonte_media, VERDE, LARGURA/2, ALTURA*3/4, "center")  # mostra total
-    draw_text("Clique para continuar", fonte_pequena, BRANCO, LARGURA/2, ALTURA*3/4 + 50, "center")  # prompt
+    draw_text("Pressione qualquer tecla para continuar", fonte_pequena, BRANCO, LARGURA/2, ALTURA*3/4 + 50, "center")  # prompt
     pygame.display.flip()  # aplica mudanças
-    
     esperando = True
     while esperando:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
+            elif evento.type == pygame.KEYDOWN:
                 esperando = False
 
 # === Função principal que inicia o jogo ===
@@ -340,7 +313,6 @@ def main():
     total_pontos = 0  # pontuação acumulada
     num_rodada = 0  # índice da rodada
     intro_screen()  # exibe tela de introdução
-    
     for jogo_atual in jogos:  # itera pelos jogos definidos
         num_rodada += 1  # incrementa número da rodada
         resposta, dicas = jogo_atual  # desempacota resposta e dicas
@@ -349,7 +321,6 @@ def main():
         show_points(pontos_ganhos, total_pontos)  # mostra pontos ganhos
         if num_rodada < len(jogos) and not ask_continue():  # verifica continuidade
             break  # encerra loop se jogador não quiser continuar
-    
     end_game_screen(total_pontos)  # exibe tela final
     pygame.quit()  # encerra pygame
     sys.exit()  # encerra programa
