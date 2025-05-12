@@ -42,7 +42,9 @@ try:
     if sys.platform == 'emscripten':
         imagem_dna = pygame.image.load('img/dna.png').convert_alpha()
     else:
-        imagem_dna = pygame.image.load(os.path.join('jogo-genetico', 'img', 'dna.png')).convert_alpha()
+        # No ambiente de desenvolvimento local
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        imagem_dna = pygame.image.load(os.path.join(script_dir, 'img', 'dna.png')).convert_alpha()
     # Reduzindo o tamanho da imagem para 200x120 pixels
     imagem_dna = pygame.transform.smoothscale(imagem_dna, (200, 120))
 except Exception as e:
