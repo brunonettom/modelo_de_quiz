@@ -119,7 +119,7 @@ def intro_screen():
     tela.fill(PRETO)  # limpa tela com cor preta
     draw_text("QUIZ GAME", fonte_titulo, AMARELO, LARGURA/2, ALTURA/4, "center")  # título do jogo
     draw_text("Tente adivinhar a resposta com o mínimo de dicas possível!", fonte_media, BRANCO, LARGURA/2, ALTURA/2, "center")  # instruções
-    draw_text("Pressione qualquer tecla para começar", fonte_pequena, VERDE, LARGURA/2, ALTURA*3/4, "center")  # prompt iniciar
+    draw_text("Pressione enter para começar", fonte_pequena, VERDE, LARGURA/2, ALTURA*3/4, "center")  # prompt iniciar
     pygame.display.flip()  # aplica mudanças na tela
     esperando = True
     while esperando:
